@@ -30,6 +30,9 @@ export default function EmployeeList() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
 
+  const employeeDetailPath = (employeeId) =>
+    role === 'senior_manager' ? `/manager/team/${employeeId}` : `/admin/employees/${employeeId}`;
+
   return (
     <div className="space-y-5" data-testid="employee-list-page">
       <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -92,7 +95,7 @@ export default function EmployeeList() {
                 {data.items.map((e) => (
                   <tr
                     key={e.id}
-                    onClick={() => navigate(`/admin/employees/${e.id}`)}
+                    onClick={() => navigate(employeeDetailPath(e.id))}
                     className="border-b border-slate-100 hover:bg-blue-50/40 cursor-pointer transition-colors"
                     data-testid={`employee-row-${e.id}`}
                   >

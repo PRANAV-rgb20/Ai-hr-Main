@@ -18,16 +18,28 @@ export default function EmployeeProfile() {
   if (loading) return <Spinner />;
   if (!emp) return <p className="text-sm text-red-600">Employee not found.</p>;
 
+  const backPath = role === 'senior_manager' ? '/manager/team' : '/admin/employees';
+  const backLabel = role === 'senior_manager' ? 'Back to my team' : 'Back to employees';
+  const initials = (emp.full_name || 'NA').split(' ').map((s) => s[0]).slice(0, 2).join('');
+
   return (
     <div className="space-y-5" data-testid="employee-profile">
-      <Link to="/admin/employees" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900" data-testid="profile-back-btn">
-        <ArrowLeft size={14} className="mr-1" /> Back to employees
+      <Link to={backPath} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900" data-testid="profile-back-btn">
+        <ArrowLeft size={14} className="mr-1" /> {backLabel}
       </Link>
 
       <div className="bg-white border border-slate-200 rounded-lg p-6 flex items-start gap-5 flex-wrap">
-        <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl font-semibold flex items-center justify-center" style={{ fontFamily: 'Outfit' }}>
-          {(emp.full_name || 'NA').split(' ').map((s) => s[0]).slice(0, 2).join('')}
-        </div>
+        {emp.profile_photo_url ? (
+          <img
+            src={emp.profile_photo_url}
+            alt={emp.full_name}
+            className="h-20 w-20 rounded-full object-cover border border-slate-200"
+          />
+        ) : (
+          <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl font-semibold flex items-center justify-center" style={{ fontFamily: 'Outfit' }}>
+            {initials}
+          </div>
+        )}
         <div className="flex-1 min-w-[220px]">
           <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">{emp.employee_code}</p>
           <h1 className="text-2xl font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>{emp.full_name}</h1>

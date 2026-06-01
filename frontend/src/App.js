@@ -73,6 +73,7 @@ function App() {
         <Route element={<ProtectedRoute allowedRoles={['senior_manager']}><Layout /></ProtectedRoute>}>
           <Route path="/manager" element={<ManagerDashboard />} />
           <Route path="/manager/team" element={<EmployeeList />} />
+          <Route path="/manager/team/:id" element={<EmployeeProfile />} />
           <Route path="/manager/attendance" element={<TodayAttendance />} />
           <Route path="/manager/leave" element={<LeaveApproval />} />
           <Route path="/manager/performance" element={<PerformanceTeam />} />

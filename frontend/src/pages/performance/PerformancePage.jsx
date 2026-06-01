@@ -66,7 +66,7 @@ export default function PerformancePage() {
           <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Trend</p>
           <h3 className="text-lg font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>Score over time</h3>
           <div className="h-64 mt-2">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <LineChart data={trend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                 <XAxis dataKey="label" stroke="#64748B" fontSize={11} />

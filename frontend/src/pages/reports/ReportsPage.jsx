@@ -47,7 +47,7 @@ export default function ReportsPage() {
           <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">People</p>
           <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Outfit' }}>Headcount by department</h3>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <BarChart data={data.headcount_by_department}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                 <XAxis dataKey="department" stroke="#64748B" fontSize={11} />
@@ -63,7 +63,7 @@ export default function ReportsPage() {
           <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Pipeline</p>
           <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Outfit' }}>Candidate stages</h3>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <PieChart>
                 <Pie data={data.candidate_pipeline} dataKey="count" nameKey="stage" outerRadius={80} label>
                   {data.candidate_pipeline.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
@@ -79,7 +79,7 @@ export default function ReportsPage() {
           <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Leave</p>
           <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Outfit' }}>By type</h3>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <BarChart data={data.leave_by_type}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                 <XAxis dataKey="type" stroke="#64748B" fontSize={11} />

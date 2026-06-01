@@ -31,6 +31,7 @@ export default function EmployeeForm() {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [photoFile, setPhotoFile] = useState(null);
 
   useEffect(() => {
     api.get('/departments').then((r) => setDepartments(r.data)).catch(() => {});
@@ -55,6 +56,15 @@ export default function EmployeeForm() {
   }, [id, isEdit]);
 
   const upd = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const uploadPhoto = async (employeeId) => {
+    if (!photoFile) return;
+    const fd = new FormData();
+    fd.append('file', photoFile);
+    await api.post(`/employees/${employeeId}/photo`, fd, {
+      headers: { 'Content-Type': undefined },
+    });
+  };
 
   const validate = () => {
     const e = {};
@@ -83,6 +93,7 @@ export default function EmployeeForm() {
           date_of_joining: form.date_of_joining || null,
         };
         await api.put(`/employees/${id}`, payload);
+        await uploadPhoto(id);
         toast.success('Employee updated');
       } else {
         const payload = {
@@ -90,7 +101,9 @@ export default function EmployeeForm() {
           department_id: form.department_id || null,
           date_of_joining: form.date_of_joining || null,
         };
-        await api.post('/employees', payload);
+        const { data } = await api.post('/employees', payload);
+        employeeId = data.id;
+        await uploadPhoto(employeeId);
         toast.success('Employee created');
       }
       navigate('/admin/employees');
@@ -167,6 +180,16 @@ export default function EmployeeForm() {
         </div>
         <Field label="Address">
           <textarea rows={2} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={form.address} onChange={(e) => upd('address', e.target.value)} data-testid="form-address" />
+        </Field>
+
+        <Field label="Profile photo">
+          <input
+            type="file"
+            accept="image/*"
+            className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border file:border-slate-300 file:text-sm file:font-medium file:bg-slate-50 file:hover:bg-slate-100"
+            onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+            data-testid="form-photo"
+          />
         </Field>
 
         <div className="flex items-center justify-end gap-2 pt-2">

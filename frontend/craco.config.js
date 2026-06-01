@@ -24,6 +24,7 @@ if (config.enableHealthCheck) {
 
 let webpackConfig = {
   eslint: {
+    enable: false,
     configure: {
       extends: ["plugin:react-hooks/recommended"],
       rules: {
@@ -37,6 +38,10 @@ let webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      // Avoid ajv/schema-utils mismatch in fork-ts-checker on Node 22 (CRA 5)
+      webpackConfig.plugins = webpackConfig.plugins.filter(
+        (plugin) => plugin?.constructor?.name !== "ForkTsCheckerWebpackPlugin"
+      );
 
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {

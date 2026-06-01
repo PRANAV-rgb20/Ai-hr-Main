@@ -11,6 +11,7 @@ from app.core.deps import get_current_user, require_roles
 from app.models.attendance import Attendance
 from app.models.employee import Department, Employee
 from app.models.leave import Leave, LeaveBalance, LeaveStatus
+from app.models.payroll import Payroll, PayrollStatus
 from app.models.user import User
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -25,6 +26,14 @@ async def admin_dashboard(
     total_employees = (await db.execute(select(func.count(Employee.id)).where(Employee.is_active.is_(True)))).scalar() or 0
     present_today = (await db.execute(select(func.count(Attendance.id)).where(Attendance.date == today))).scalar() or 0
     pending_leaves = (await db.execute(select(func.count(Leave.id)).where(Leave.status == LeaveStatus.pending))).scalar() or 0
+
+    payroll_total = (await db.execute(
+        select(func.coalesce(func.sum(Payroll.net_salary), 0)).where(
+            Payroll.month == today.month,
+            Payroll.year == today.year,
+            Payroll.status.in_([PayrollStatus.processed, PayrollStatus.paid]),
+        )
+    )).scalar() or 0
 
     # Headcount by department
     res = await db.execute(
@@ -63,7 +72,7 @@ async def admin_dashboard(
         "total_employees": total_employees,
         "present_today": present_today,
         "pending_leaves": pending_leaves,
-        "payroll_total": 0,
+        "payroll_total": float(payroll_total),
         "headcount_by_department": headcount,
         "attendance_trend": months,
     }

@@ -64,7 +64,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <LineChart data={data.attendance_trend || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                 <XAxis dataKey="label" stroke="#64748B" fontSize={11} />
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
           <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Headcount</p>
           <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Outfit' }}>By department</h3>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <BarChart data={data.headcount_by_department || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                 <XAxis dataKey="department" stroke="#64748B" fontSize={10} />
