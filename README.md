@@ -9,7 +9,7 @@ This document serves as the comprehensive guide to the project's architecture, f
 ## 🚀 Live Demo & Judge's Guide
 If you are evaluating this project, you can test the entire platform without setting anything up! Because the application uses **Strict Role-Based Access**, you will need to log in as different users to see the different features (e.g., you cannot see the AI Resume Screener unless you log in as the Recruiter or Admin).
 
-**Live Website URL:** *[Insert your Vercel URL here]*
+**Live Website URL:** [https://ai-hr-main-3419.vercel.app/](https://ai-hr-main-3419.vercel.app/)
 
 Please use the following pre-configured credentials to explore the different dashboards:
 
