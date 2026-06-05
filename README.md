@@ -47,11 +47,9 @@ CLOUDINARY_API_SECRET=your_secret
 # CORS
 CORS_ORIGINS=http://localhost:3000
 
-# AI — Google Gemini — https://aistudio.google.com/app/apikey
-GEMINI_API_KEY=AIza...
-
-# AI — Groq (Interview Bot) — https://console.groq.com/keys
-GROQ_API_KEY=gsk_...
+# AI — OpenRouter (Required for all AI features)
+# Get a key at: https://openrouter.ai/keys
+OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
 ### frontend/.env
