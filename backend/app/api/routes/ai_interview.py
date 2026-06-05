@@ -214,3 +214,98 @@ async def get_interview(
         "started_at": session.started_at.isoformat() if session.started_at else None,
         "ended_at":   session.ended_at.isoformat()   if session.ended_at   else None,
     }
+
+
+# ── public routes for external candidates ─────────────────────────────────────
+
+@router.post("/interview/public/respond/")
+async def respond_to_interview_public(
+    req: RespondRequest,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+):
+    """Public version of respond_to_interview without auth."""
+    cached = await cache_get(f"interview:{req.session_id}")
+    if cached:
+        data    = json.loads(cached)
+        system  = data["system"]
+        history = data["history"]
+    else:
+        result  = await db.execute(
+            select(InterviewSession).where(InterviewSession.id == req.session_id)
+        )
+        session = result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Interview session not found")
+        if session.status == "completed":
+            raise HTTPException(status_code=409, detail="Interview already completed")
+        system  = SYSTEM_PROMPT
+        history = session.conversation_history or []
+
+    history.append({"role": "user", "content": req.answer})
+
+    messages = [{"role": "system", "content": system}] + history
+    try:
+        reply = await chat(
+            messages=messages,
+            model=MODEL_INTERVIEW,
+            max_tokens=600,
+            temperature=0.7,
+        )
+    except Exception as e:
+        logger.error(f"OpenRouter public interview respond error: {e}")
+        raise HTTPException(status_code=502, detail=f"AI service error: {str(e)}")
+
+    history.append({"role": "assistant", "content": reply})
+
+    assessment  = _parse_assessment(reply)
+    is_complete = assessment is not None
+
+    db_result = await db.execute(
+        select(InterviewSession).where(InterviewSession.id == req.session_id)
+    )
+    session = db_result.scalar_one_or_none()
+
+    if session:
+        session.conversation_history = history
+        if is_complete:
+            session.status     = "completed"
+            session.assessment = assessment
+            session.ended_at   = datetime.now(timezone.utc)
+            await cache_delete(f"interview:{req.session_id}")
+        else:
+            await cache_set(
+                f"interview:{req.session_id}",
+                json.dumps({"system": system, "history": history}),
+                ttl_seconds=7200,
+            )
+        await db.commit()
+
+    if is_complete:
+        return {"complete": True, "assessment": assessment}
+    return {"complete": False, "question": reply}
+
+
+@router.get("/interview/public/{session_id}/")
+async def get_interview_public(
+    session_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+):
+    """Public version of get_interview without auth."""
+    result  = await db.execute(
+        select(InterviewSession).where(InterviewSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Hide assessment data from candidates!
+    return {
+        "id":                   str(session.id),
+        "candidate_id":         str(session.candidate_id),
+        "candidate_name":       session.candidate_name,
+        "job_title":            session.job_title,
+        "status":               session.status,
+        "conversation_history": session.conversation_history,
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "ended_at":   session.ended_at.isoformat()   if session.ended_at   else None,
+    }

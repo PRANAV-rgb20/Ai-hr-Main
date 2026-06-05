@@ -271,6 +271,24 @@ function InterviewScreen({ sessionId, firstQuestion, onComplete }) {
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto" data-testid="interview-screen">
+      {/* Public Link Banner */}
+      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-indigo-900">Candidate Interview Link Generated!</p>
+          <p className="text-xs text-indigo-700 mt-0.5">Send this link to the candidate, or test the interview below yourself.</p>
+        </div>
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}/interview/${sessionId}`;
+            navigator.clipboard.writeText(url);
+            toast.success('Public link copied to clipboard!');
+          }}
+          className="h-8 px-3 rounded-md bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 transition-colors"
+        >
+          Copy Link
+        </button>
+      </div>
+
       {/* Progress */}
       <div>
         <div className="flex items-center justify-between text-xs text-slate-500 mb-1">

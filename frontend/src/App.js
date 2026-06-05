@@ -10,6 +10,7 @@ import { useAuthStore } from './store/authStore';
 const Login = lazy(() => import('./pages/Login'));
 const Landing = lazy(() => import('./pages/Landing'));
 const PublicApply = lazy(() => import('./pages/recruitment/PublicApply'));
+const PublicInterview = lazy(() => import('./pages/ai/PublicInterview'));
 
 const AdminDashboard = lazy(() => import('./pages/dashboards/AdminDashboard'));
 const ManagerDashboard = lazy(() => import('./pages/dashboards/ManagerDashboard'));
@@ -61,6 +62,7 @@ function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/apply/:jobId" element={<PublicApply />} />
+          <Route path="/interview/:sessionId" element={<PublicInterview />} />
 
           {/* Admin */}
           <Route element={<ProtectedRoute allowedRoles={['management_admin']}><Layout /></ProtectedRoute>}>

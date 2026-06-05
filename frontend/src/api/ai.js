@@ -25,6 +25,12 @@ export const respondToInterview = (sessionId, answer) =>
 export const getInterview = (sessionId) =>
   api.get(`/ai/interview/${sessionId}/`);
 
+export const respondToInterviewPublic = (sessionId, answer) =>
+  api.post('/ai/interview/public/respond/', { session_id: sessionId, answer });
+
+export const getInterviewPublic = (sessionId) =>
+  api.get(`/ai/interview/public/${sessionId}/`);
+
 // ── ML Predictions ────────────────────────────────────────────────────────────
 
 export const predictPerformance = (employeeId) =>
