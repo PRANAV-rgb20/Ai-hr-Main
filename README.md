@@ -6,6 +6,24 @@ This document serves as the comprehensive guide to the project's architecture, f
 
 ---
 
+## 🚀 Live Demo & Judge's Guide
+If you are evaluating this project, you can test the entire platform without setting anything up! Because the application uses **Strict Role-Based Access**, you will need to log in as different users to see the different features (e.g., you cannot see the AI Resume Screener unless you log in as the Recruiter or Admin).
+
+**Live Website URL:** *[Insert your Vercel URL here]*
+
+Please use the following pre-configured credentials to explore the different dashboards:
+
+| Role | Email | Password | What to test |
+| :--- | :--- | :--- | :--- |
+| **Admin** (God Mode) | `admin@hrms.com` | `Admin@123` | Can see and override everything. Test the Analytics Dashboard, Audit Logs, and Global AI features. |
+| **Manager** (Team Leader) | `manager@hrms.com` | `Manager@123` | Test the **AI Attrition Risk predictor** and **Sentiment Pulse** to check the health of their specific team. |
+| **Recruiter** (Hiring) | `recruiter@hrms.com` | `Recruiter@123` | Test the **AI Resume Screener** (upload a PDF) and the **AI Interview Room** (simulates a tech interview). |
+| **Employee** (Standard) | `employee1@hrms.com` | `Employee@123` | Test the daily clock-in/out, request leave, and ask the **AI Policy Chatbot** questions. |
+
+*(Note: The very first time you log in, it may take ~60 seconds to load because the backend Render server is cold-booting the AI models. All clicks after that will be lightning fast!)*
+
+---
+
 ## 1. System Architecture & Tech Stack
 
 The application uses a decoupled **Client-Server Architecture**. The frontend (visual interface) and backend (data/logic) are completely separate systems that communicate securely over REST APIs.
