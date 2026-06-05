@@ -1,224 +1,101 @@
-# HRMS — Human Resource Management System
+# Lumen HR — Workforce Operations OS
 
-Full-stack HRMS with role-based access for **management_admin**, **senior_manager**, **hr_recruiter**, and **employee**, extended with 8 AI/ML features.
+Lumen HR is a modern, full-stack Workforce Operations Operating System designed to handle standard HR workflows (Attendance, Leave, Payroll) while supercharging them with advanced Artificial Intelligence and Machine Learning models.
 
-## Tech stack
-
-| Layer | Stack |
-|-------|--------|
-| Frontend | React 19 (CRA + CRACO + Tailwind), React Router v6, Zustand, Recharts, react-hot-toast, lucide-react, Axios |
-| Backend | FastAPI (Python 3.10), SQLAlchemy 2.0 async (asyncpg), PyJWT, bcrypt, Pydantic v2 |
-| Database | **Neon** PostgreSQL (`postgresql+asyncpg://...`) |
-| Files | Cloudinary (profile photos + resume PDFs) |
-| Cache | Upstash Redis TLS (`REDIS_URL`) — graceful no-op if unavailable |
-| AI | Google Gemini 1.5 Flash, Groq Llama-3.3-70b, scikit-learn, spaCy |
-
-API prefix: **`/api/v1`**
-
-Error format:
-```json
-{ "detail": "Human-readable message", "code": "machine_readable_code" }
-```
+This document serves as the comprehensive guide to the project's architecture, features, and underlying technology.
 
 ---
 
-## Environment Variables
+## 1. System Architecture & Tech Stack
 
-### backend/.env
+The application uses a decoupled **Client-Server Architecture**. The frontend (visual interface) and backend (data/logic) are completely separate systems that communicate securely over REST APIs.
 
-```env
-# PostgreSQL — Neon (use postgresql+asyncpg:// driver)
-DATABASE_URL=postgresql+asyncpg://user:pass@host/db?ssl=require
+### 🔴 The Frontend (User Interface)
+* **Framework:** React.js
+* **Styling:** Tailwind CSS (for modern, responsive, and customizable designs)
+* **State Management:** Zustand (a lightweight state manager to handle user logins and UI states)
+* **API Client:** Axios (used to send HTTP requests to the backend)
+* **Hosting:** Vercel (Globally distributed Edge Network for lightning-fast webpage delivery)
 
-# JWT
-SECRET_KEY=at-least-32-random-characters
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
+### 🔵 The Backend (Brain & API)
+* **Framework:** FastAPI (Python) - Chosen for its extreme speed and native support for asynchronous programming (async/await), which is critical when waiting for slow AI models to respond.
+* **Database:** PostgreSQL hosted on **Neon** (a modern, serverless SQL database).
+* **ORM:** SQLAlchemy with Asyncpg (Translates Python code into raw SQL queries automatically).
+* **Caching:** Redis hosted on **Upstash** (Stores frequently accessed data, like dashboard statistics, in memory so the database doesn't get overloaded).
+* **Authentication:** JWT (JSON Web Tokens) with bcrypt password hashing.
+* **Hosting:** Render (Cloud platform for running Python server containers).
 
-# Upstash Redis (TLS) — leave empty to disable caching
-REDIS_URL=rediss://default:TOKEN@endpoint.upstash.io:6379
-
-# Cloudinary — https://cloudinary.com/console
-CLOUDINARY_CLOUD_NAME=your_cloud
-CLOUDINARY_API_KEY=your_key
-CLOUDINARY_API_SECRET=your_secret
-
-# CORS
-CORS_ORIGINS=http://localhost:3000
-
-# AI — OpenRouter (Required for all AI features)
-# Get a key at: https://openrouter.ai/keys
-OPENROUTER_API_KEY=sk-or-v1-...
-```
-
-### frontend/.env
-
-```env
-REACT_APP_BACKEND_URL=http://localhost:8000
-REACT_APP_WS_URL=ws://localhost:8000
-```
+### 🟢 How The Website Works (Data Flow)
+1. A user clicks a button (e.g., "Sign In" or "Analyze Resume") on the React frontend.
+2. `Axios` packages the data and sends a secure `POST` request over the internet to the live backend URL (`https://ai-hr-main.onrender.com/api/v1`).
+3. The FastAPI backend receives the request and connects to the **Neon PostgreSQL** database to verify data or fetch records.
+4. If an AI route is called, the backend securely contacts cloud LLMs or runs local Machine Learning models in memory.
+5. FastAPI formats the final result, saves necessary caching states in **Redis**, and sends JSON data back to React.
+6. React updates the screen instantly with the results.
 
 ---
 
-## Local setup
+## 2. Role-Based Access Control (RBAC)
 
-### 1. Clone and configure environment
+The interface transforms completely depending on the user's role. 
 
+### A. The Employee (Self-Service)
+* **What they see:** A simple dashboard to manage their own life.
+* **Features:** Live clock in/out for daily attendance, view personal leave balances, submit Time Off requests, view/download monthly Payslips, and check their own Performance Reviews.
+
+### B. The Manager (Team Leader)
+* **What they see:** A dashboard focused strictly on the people that report to them.
+* **Features:** View profiles of their specific team members, see today's team attendance, approve or reject leave requests from their team, and write performance reviews.
+* **AI Access:** They can use the **Attrition Risk AI** and **Sentiment Pulse AI** specifically to check the health and morale of their own team.
+
+### C. The Recruiter (Hiring)
+* **What they see:** A dashboard strictly dedicated to the hiring pipeline.
+* **Features:** Create new Job Postings, manage the Candidate Kanban board (moving candidates from "Applied" -> "Interviewing" -> "Hired").
+* **AI Access:** Full access to the **AI Resume Screener** and the **AI Interview Room** to automate candidate screening.
+
+### D. The Admin (Global Override)
+* **What they see:** The God-mode view of the entire company.
+* **Features:** View/edit every employee in the system, create Departments, view company-wide attendance, run global Payroll, and manage system settings.
+* **AI Access:** Absolute access to every AI module across the entire company.
+
+---
+
+## 3. The Artificial Intelligence & Machine Learning Engines
+
+We use a sophisticated fallback chain through OpenRouter, combined with local offline mathematical models running directly on the server.
+
+### ☁️ The Cloud LLMs (via OpenRouter)
+1. **`openai/gpt-oss-120b:free` (Primary "Smart" Model):** The heavy lifter. Assigned to handle complex reasoning tasks, specifically the **AI Interview Bot** and deep **Resume Screening** analysis.
+2. **`google/gemma-4-31b-it:free` (The "Fast" Model):** Assigned to handle quick, structured tasks (like rapidly formatting JSON data) where speed is more important than deep reasoning.
+3. **`moonshotai/kimi-k2.6:free`:** Hardcoded to run the **HR Policy Chatbot**, answering employee questions about the company handbook.
+4. **`nvidia/nemotron-3-ultra-550b-a55b:free`:** The absolute fallback. If the other three go offline, the system code automatically routes requests to Nvidia Nemotron so the app never crashes.
+
+### 💻 The Local Offline Models (Running natively on Python)
+1. **`en_core_web_sm` (by spaCy):** A lightweight Natural Language Processing model. It does not use the internet. Used strictly during Resume Screening to rapidly rip out physical nouns (Names, Dates, Companies) before the text is sent to the LLM.
+2. **`Random Forest Classifier` (by Scikit-Learn):** A pure mathematical Machine Learning algorithm. It calculates the 1-100% **Attrition Risk**. It takes raw data (salary, hours, age) and runs it through a massive mathematical decision tree to predict if someone will quit.
+3. **`sentence-transformers` (by HuggingFace):** Runs the **Sentiment Pulse**. Converts anonymous employee feedback paragraphs into mathematical vectors to gauge whether a sentence is angry, happy, or stressed.
+
+---
+
+## 4. Local Development
+
+**1. Clone the repository**
 ```bash
-cp backend/.env.example backend/.env
-# Fill in all values in backend/.env
-echo "REACT_APP_BACKEND_URL=http://localhost:8000" > frontend/.env
+git clone https://github.com/PRANAV-rgb20/Ai-hr-Main.git
 ```
 
-### 2. Backend
-
+**2. Start the Backend**
 ```bash
 cd backend
 python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-source .venv/bin/activate
-
+source .venv/bin/activate  # (or .venv\Scripts\activate on Windows)
 pip install -r requirements.txt
-
-# Download spaCy model (needed for Resume Screener)
-python -m pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+uvicorn app.main:app --reload
 ```
 
-### 3. Seed demo data
-
-```bash
-# From backend/ with venv active
-python -m seed
-```
-
-Creates: 8 users, 3 departments, employees, 30-day attendance, leave balances, payroll (3 months), performance reviews, goals, job postings, candidates, and sentiment check-ins.
-
-### 4. Start backend
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 5. Frontend
-
+**3. Start the Frontend**
 ```bash
 cd frontend
 npm install --legacy-peer-deps
-npm start   # http://localhost:3000
+npm start
 ```
-
----
-
-## Demo credentials
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@hrms.com | Admin@123 |
-| Manager | manager@hrms.com | Manager@123 |
-| Recruiter | recruiter@hrms.com | Recruiter@123 |
-| Employee | employee1–5@hrms.com | Employee@123 |
-
----
-
-## Core Modules
-
-1. **Auth** — login, register, JWT refresh, Redis user cache (30 min TTL)
-2. **Employees** — CRUD, departments, Cloudinary profile photos
-3. **Attendance** — clock-in/out, monthly calendar, team/today views
-4. **Leave** — apply, approve/reject, balance tracking, notifications
-5. **Payroll** — generate, payslips, mark paid
-6. **Performance** — reviews (scored 0-10), goals with progress
-7. **Recruitment** — job postings, drag-and-drop Kanban, public apply with PDF upload
-8. **Notifications** — in-app bell, 60s polling, mark read
-9. **Dashboards** — per-role with real data and Recharts charts
-10. **Reports** — overview analytics
-11. **Analytics Dashboard** — 5 chart types, 3M/6M/12M toggle, CSV export
-
----
-
-## AI Features
-
-| # | Feature | Route | Roles |
-|---|---------|-------|-------|
-| 1 | **Resume Screener** — Gemini scores PDF resumes against job descriptions | `/ai/resume-screener` | Admin, Recruiter |
-| 2 | **Interview Bot** — Groq Llama conducts 8-question voice/text interviews | `/ai/interview` | Admin, Recruiter |
-| 3 | **Attrition Risk** — ML (Logistic Regression) predicts attrition probability | `/ai/attrition` | Admin, Manager |
-| 4 | **Sentiment Pulse** — Gemini analyzes weekly mood check-ins, heatmap by dept | `/ai/sentiment` | Admin, Manager |
-| 5 | **Performance Predictor** — Random Forest predicts performance score | Employee profile | Admin, Manager |
-| 6 | **Payroll Anomaly Detector** — Isolation Forest flags unusual payroll records | Payroll admin page | Admin |
-| 7 | **Leave Optimizer** — Gemini suggests optimal leave windows avoiding team conflicts | Leave apply form | All employees |
-| 8 | **Audit Logs** — Full action trail: login, employee changes, leave decisions, payroll | `/ai/audit` | Admin |
-
----
-
-## Public job application
-
-- Route: `/apply/:jobId` (no auth required)
-- API: `POST /api/v1/jobs/{id}/apply`
-- Supports JSON or multipart/form-data (with optional resume PDF → Cloudinary)
-
----
-
-## Re-seed
-
-```bash
-cd backend && python -m seed
-```
-
-> ⚠️ Seed clears all HRMS tables before inserting fresh demo data.
-
----
-
-## Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "feat: HRMS with AI features"
-git branch -M main
-git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
-git push -u origin main
-```
-
-Never commit `.env` — only `.env.example`.
-
----
-
-## Recent Fixes & Optimizations
-
-This project has been heavily optimized for production:
-
-1. **Performance Enhancements**:
-   - Resolved N+1 query issues in the dashboard by implementing `selectinload` for Employee relationships.
-   - Flattened expensive 12-query attendance trend loops into a single optimized `GROUP BY` SQL query using `func.extract`.
-   - Extracted live clock components in React to prevent global 1-second interval re-renders.
-   - Added a 60-second Redis Cache layer to heavy analytical dashboard endpoints.
-2. **Robust Fallback Logic**:
-   - Fixed empty-state edge cases in the Attendance Dashboard. If no one has clocked in for the current day (e.g., weekends/early mornings), the system automatically gracefully falls back to displaying the data from the *Last Active Working Day*.
-   - Fixed the 6-Month Attendance Rate calculation to properly factor in total active headcount and actual working days.
-3. **Hierarchical Logic Constraints**:
-   - Enforced strict manager assignment rules in the frontend. `senior_manager` and `management_admin` roles cannot be assigned a manager, while standard employees can dynamically select their manager from a filtered list of senior staff.
-
----
-
-## Deployment Guide
-
-### Backend (Render)
-1. Create a **Web Service** on Render pointing to the `backend` directory.
-2. Build Command: `pip install -r requirements.txt`
-3. Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-4. Set Environment Variables: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `OPENROUTER_API_KEY`.
-
-### Frontend (Vercel)
-1. Create a new project on Vercel pointing to the `frontend` directory.
-2. Set Environment Variable: `REACT_APP_API_URL` to your Render backend URL (e.g., `https://api.onrender.com/api/v1`).
-3. Add a `vercel.json` file to the frontend root to handle React Router SPA rewrites:
-   ```json
-   { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
-   ```
-4. **CORS**: Ensure your new Vercel `.vercel.app` domain is added to the `CORS_ORIGINS` list in your backend `.env` or settings.
