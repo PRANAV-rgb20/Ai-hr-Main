@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import selectinload
+
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_roles
 from app.models.attendance import Attendance, AttendanceStatus
@@ -110,10 +112,29 @@ async def today_overview(
 ):
     today = date.today()
     # all active employees with today's attendance
-    res = await db.execute(select(Employee).where(Employee.is_active.is_(True)))
+    res = await db.execute(
+        select(Employee)
+        .where(Employee.is_active.is_(True))
+        .options(selectinload(Employee.user), selectinload(Employee.department))
+    )
     employees = res.scalars().unique().all()
+    
     att_res = await db.execute(select(Attendance).where(Attendance.date == today))
     att_map = {a.employee_id: a for a in att_res.scalars().all()}
+    
+    # If no one has clocked in yet today (weekend/early morning), fallback to last working date
+    if not att_map:
+        last_date_res = await db.execute(
+            select(func.max(Attendance.date)).where(
+                Attendance.status.in_(["present", "late"])
+            )
+        )
+        last_date = last_date_res.scalar()
+        if last_date and last_date != today:
+            today = last_date
+            att_res = await db.execute(select(Attendance).where(Attendance.date == today))
+            att_map = {a.employee_id: a for a in att_res.scalars().all()}
+
     out = []
     for e in employees:
         a = att_map.get(e.id)
@@ -126,6 +147,7 @@ async def today_overview(
                 "clock_in": a.clock_in.isoformat() if a and a.clock_in else None,
                 "clock_out": a.clock_out.isoformat() if a and a.clock_out else None,
                 "status": a.status if a else "absent",
+                "attendance_date": today.isoformat(),
             }
         )
     return out

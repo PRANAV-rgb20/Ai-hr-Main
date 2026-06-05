@@ -1,8 +1,8 @@
 """Reports — aggregated org-wide analytics for admin."""
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,3 +86,121 @@ async def overview(
         "payroll_recent": payroll_recent,
         "candidate_pipeline": pipeline,
     }
+
+
+# ── Analytics endpoints ───────────────────────────────────────────────────────
+
+@router.get("/headcount/")
+async def headcount_by_department(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_roles("management_admin"))],
+):
+    rows = await db.execute(
+        select(Department.name, func.count(Employee.id).label("employee_count"))
+        .join(Employee, Employee.department_id == Department.id, isouter=True)
+        .where(Employee.is_active.is_(True))
+        .group_by(Department.name)
+        .order_by(Department.name)
+    )
+    return [{"department_name": n, "employee_count": c} for n, c in rows.all()]
+
+
+@router.get("/attendance-trend/")
+async def attendance_trend(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_roles("management_admin"))],
+    months: int = Query(6, ge=1, le=24),
+):
+    today = date.today()
+    result = []
+    for i in range(months - 1, -1, -1):
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        total = (await db.execute(
+            select(func.count(Attendance.id)).where(
+                func.extract("month", Attendance.date) == m,
+                func.extract("year",  Attendance.date) == y,
+            )
+        )).scalar() or 0
+        present = (await db.execute(
+            select(func.count(Attendance.id)).where(
+                Attendance.status.in_(["present", "late"]),
+                func.extract("month", Attendance.date) == m,
+                func.extract("year",  Attendance.date) == y,
+            )
+        )).scalar() or 0
+        rate = round((present / total * 100) if total else 0, 1)
+        result.append({
+            "month_label": date(y, m, 1).strftime("%b %Y"),
+            "attendance_rate": rate,
+            "total_records": total,
+            "present_records": present,
+        })
+    return result
+
+
+@router.get("/leave-distribution/")
+async def leave_distribution(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_roles("management_admin"))],
+):
+    year = date.today().year
+    rows = await db.execute(
+        select(Leave.leave_type, func.sum(Leave.days_count).label("total_days"))
+        .where(func.extract("year", Leave.start_date) == year)
+        .group_by(Leave.leave_type)
+        .order_by(func.sum(Leave.days_count).desc())
+    )
+    return [{"leave_type": lt, "total_days_taken": int(td or 0)} for lt, td in rows.all()]
+
+
+@router.get("/payroll-trend/")
+async def payroll_trend(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_roles("management_admin"))],
+    months: int = Query(6, ge=1, le=24),
+):
+    today = date.today()
+    result = []
+    for i in range(months - 1, -1, -1):
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        rows = await db.execute(
+            select(
+                func.coalesce(func.sum(Payroll.net_salary), 0),
+                func.count(Payroll.id),
+                func.coalesce(func.avg(Payroll.net_salary), 0),
+            ).where(Payroll.month == m, Payroll.year == y)
+        )
+        total_cost, count, avg = rows.one()
+        result.append({
+            "month_label": date(y, m, 1).strftime("%b %Y"),
+            "total_cost": round(float(total_cost), 2),
+            "count": int(count),
+            "avg_salary": round(float(avg), 2),
+        })
+    return result
+
+
+@router.get("/performance-distribution/")
+async def performance_distribution(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(require_roles("management_admin"))],
+):
+    ranges = [("0-4", 0, 4), ("4-6", 4, 6), ("6-8", 6, 8), ("8-10", 8, 10)]
+    result = []
+    for label, low, high in ranges:
+        count = (await db.execute(
+            select(func.count(PerformanceReview.id)).where(
+                PerformanceReview.overall_score >= low,
+                PerformanceReview.overall_score < high if high < 10 else PerformanceReview.overall_score <= high,
+            )
+        )).scalar() or 0
+        result.append({"score_range": label, "count": int(count)})
+    return result

@@ -12,6 +12,7 @@ from app.models.employee import Employee
 from app.models.payroll import Payroll, PayrollStatus
 from app.models.user import User
 from app.schemas import PayrollOut
+from app.core.audit import log_action
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
 
@@ -50,7 +51,7 @@ async def generate(
     month: int,
     year: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_roles("management_admin"))],
+    current_user: Annotated[User, Depends(require_roles("management_admin"))],
 ):
     if month < 1 or month > 12 or year < 2000 or year > 2100:
         raise HTTPException(status_code=400, detail="Invalid month/year")
@@ -63,7 +64,6 @@ async def generate(
         if existing:
             out.append(_to_out(existing, e.user.full_name if e.user else None))
             continue
-        # Salary scaffold based on role
         basic = 8000.0 if e.user and e.user.role == "management_admin" else 6000.0 if e.user and e.user.role == "senior_manager" else 5000.0 if e.user and e.user.role == "hr_recruiter" else 4000.0
         hra = round(basic * 0.4, 2)
         transport = 200.0
@@ -88,6 +88,7 @@ async def generate(
         await db.flush()
         out.append(_to_out(p, e.user.full_name if e.user else None))
     await db.commit()
+    await log_action(db, current_user, "payroll_generated", "payroll", f"{month}/{year}")
     return out
 
 

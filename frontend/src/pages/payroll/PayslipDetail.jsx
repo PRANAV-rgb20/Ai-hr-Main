@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { api } from '../../api/client';
 import Spinner from '../../components/Spinner';
@@ -8,6 +8,7 @@ const MONTH_LABEL = (m, y) => new Date(y, m - 1, 1).toLocaleString('en-US', { mo
 
 export default function PayslipDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [p, setP] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,9 +33,9 @@ export default function PayslipDetail() {
 
   return (
     <div className="space-y-5 max-w-3xl" data-testid="payslip-detail">
-      <Link to={-1} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowLeft size={14} className="mr-1" /> Back
-      </Link>
+      </button>
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden print:shadow-none">
         <div className="p-6 flex items-start justify-between border-b border-slate-200">

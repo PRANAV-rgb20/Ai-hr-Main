@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { AlertTriangle, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api, formatApiError } from '../../api/client';
+import { getLeaveConflict } from '../../api/ai';
 import Spinner from '../../components/Spinner';
 import EmptyState from '../../components/EmptyState';
 
 export default function LeaveApproval() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [conflict, setConflict] = useState(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -15,11 +18,29 @@ export default function LeaveApproval() {
   };
   useEffect(load, []);
 
-  const decide = async (id, action) => {
+  const finishDecision = async (id, action) => {
     try {
       await api.put(`/leave/${id}/${action}`);
       toast.success(`Leave ${action}d`);
       load();
+    } catch (e) {
+      toast.error(formatApiError(e));
+    }
+  };
+
+  const decide = async (id, action) => {
+    if (action !== 'approve') {
+      finishDecision(id, action);
+      return;
+    }
+    try {
+      const { data: check } = await getLeaveConflict(id);
+      if (check.threshold_exceeded) {
+        setPendingApprovalId(id);
+        setConflict(check);
+        return;
+      }
+      finishDecision(id, action);
     } catch (e) {
       toast.error(formatApiError(e));
     }
@@ -69,6 +90,50 @@ export default function LeaveApproval() {
           </table>
         )}
       </div>
+
+      {conflict && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-lg border border-amber-200 shadow-xl p-5">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider font-semibold text-amber-700">Scheduling Conflict</p>
+                <h3 className="text-lg font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>Coverage risk detected</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{conflict.message}</p>
+                {conflict.project_deadline && (
+                  <p className="mt-2 text-sm text-slate-700">
+                    Project deadline: <span className="font-medium">{conflict.project_deadline.name}</span> is on {conflict.project_deadline.date}.
+                  </p>
+                )}
+                <p className="mt-2 text-sm font-medium text-amber-800">{conflict.suggestion}</p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setConflict(null); setPendingApprovalId(null); }}
+                className="h-9 px-3 rounded-md border border-slate-300 text-sm font-medium hover:bg-slate-50"
+              >
+                Review later
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = pendingApprovalId;
+                  setConflict(null);
+                  setPendingApprovalId(null);
+                  if (id) finishDecision(id, 'approve');
+                }}
+                className="h-9 px-3 rounded-md bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+              >
+                Approve anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

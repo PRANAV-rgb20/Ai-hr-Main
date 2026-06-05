@@ -1,22 +1,64 @@
 import { useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { api } from '../../api/client';
 import Spinner from '../../components/Spinner';
 import EmptyState from '../../components/EmptyState';
 
 export default function TodayAttendance() {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  const load = () => {
+    api.get('/attendance/today')
+      .then((r) => { setRows(r.data); setLastUpdate(new Date()); })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    api.get('/attendance/today').then((r) => setRows(r.data)).finally(() => setLoading(false));
+    load();
+    // Auto-refresh every 60 seconds — attendance status changes throughout the day
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
   }, []);
+
+  const presentCount  = rows.filter((r) => r.status === 'present' || r.status === 'late').length;
+  const absentCount   = rows.filter((r) => !r.clock_in).length;
+  
+  // Use the date from the backend data if available, otherwise use today
+  const dataDateStr = rows.length > 0 && rows[0].attendance_date ? rows[0].attendance_date : null;
+  const isToday = !dataDateStr || dataDateStr === new Date().toISOString().split('T')[0];
+  const displayDate = new Date(dataDateStr || Date.now());
+  const dateFormatted = displayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
   return (
     <div className="space-y-5" data-testid="today-attendance-page">
-      <div>
-        <p className="text-xs uppercase tracking-[0.08em] text-slate-500 font-semibold">Today</p>
-        <h1 className="text-3xl font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>Who's in today</h1>
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.08em] text-slate-500 font-semibold">{dateFormatted}</p>
+          <h1 className="text-3xl font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>
+            {isToday ? "Who's in today" : "Previous Attendance"}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" />{presentCount} present</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-400" />{absentCount} absent</span>
+          </div>
+          <button
+            type="button"
+            onClick={load}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-slate-200 text-xs font-medium hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw size={12} /> Refresh
+          </button>
+        </div>
       </div>
+      {lastUpdate && (
+        <p className="text-[11px] text-slate-400">
+          Last updated: {lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · Auto-refreshes every minute
+        </p>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
         {loading ? <Spinner /> : rows.length === 0 ? (

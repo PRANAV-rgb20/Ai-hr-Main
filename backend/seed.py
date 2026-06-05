@@ -18,9 +18,8 @@ from app.models.notification import Notification
 from app.models.payroll import Payroll, PayrollStatus
 from app.models.performance import Goal, GoalStatus, PerformanceReview, ReviewPeriod, ReviewStatus
 from app.models.recruitment import Candidate, CandidateStatus, JobPosting, JobStatus
+from app.models.sentiment import SentimentCheckIn
 from app.models.user import RoleEnum, User
-
-
 USERS = [
     {"email": "admin@hrms.com", "password": "Admin@123", "full_name": "Avery Stone", "role": RoleEnum.management_admin.value},
     {"email": "manager@hrms.com", "password": "Manager@123", "full_name": "Morgan Hale", "role": RoleEnum.senior_manager.value},
@@ -36,7 +35,7 @@ DEPARTMENTS = ["Engineering", "Human Resources", "Operations"]
 
 
 async def reset_data(db: AsyncSession):
-    for model in [Notification, Attendance, Leave, LeaveBalance, Payroll, PerformanceReview, Goal, Candidate, JobPosting, Employee, Department, User]:
+    for model in [Notification, Attendance, Leave, LeaveBalance, Payroll, PerformanceReview, Goal, Candidate, JobPosting, SentimentCheckIn, Employee, Department, User]:
         await db.execute(delete(model))
     await db.commit()
 
@@ -292,6 +291,74 @@ async def main():
 
         await db.commit()
         print("Seed complete.")
+
+        # ----- Sentiment check-ins: last 8 weeks for all employees -----
+        from app.models.sentiment import SentimentCheckIn
+        labels = ["positive", "positive", "neutral", "negative", "burnout"]
+        themes_map = {
+            "positive": ["great teamwork", "good progress", "enjoying work"],
+            "neutral":  ["normal week", "steady workload", "routine tasks"],
+            "negative": ["heavy workload", "deadline pressure", "team conflicts"],
+            "burnout":  ["exhausted", "overwhelmed", "need break"],
+        }
+        base_scores = {"positive": 0.7, "neutral": 0.1, "negative": -0.5, "burnout": -0.85}
+        all_employees = list(emp_records.values())
+
+        for emp in all_employees:
+            for week_offset in range(8):
+                ref_dt = datetime.now(timezone.utc) - timedelta(weeks=week_offset)
+                wk   = ref_dt.isocalendar()[1]
+                yr   = ref_dt.year
+                label = random.choice(labels)
+                score = base_scores[label] + random.uniform(-0.1, 0.1)
+                themes = random.sample(themes_map[label], min(2, len(themes_map[label])))
+                db.add(SentimentCheckIn(
+                    employee_id=str(emp.id),
+                    week_number=wk,
+                    year=yr,
+                    mood_text=f"Sample check-in for week {wk}",
+                    sentiment_score=round(score, 2),
+                    sentiment_label=label,
+                    key_themes=themes,
+                ))
+
+        await db.commit()
+        print("Sentiment check-ins seeded.")
+
+        # ----- Policy documents for RAG chatbot -----
+        from app.models.policy import PolicyDocument
+        from app.ai.embeddings import _encode
+
+        # Clear existing policy docs first
+        await db.execute(delete(PolicyDocument))
+        await db.commit()
+
+        policy_data = [
+            ("Leave Policy",     "Annual Leave: All employees are entitled to 18 days of paid annual leave per year. Leave must be applied at least 3 working days in advance. Carry forward of up to 5 unused days is permitted to the next calendar year."),
+            ("Leave Policy",     "Sick Leave: Employees are entitled to 10 days of paid sick leave annually. A medical certificate is required for sick leave exceeding 3 consecutive days. Sick leave cannot be carried forward."),
+            ("Leave Policy",     "Casual Leave: 6 days of casual leave are provided per year for personal emergencies. Maximum 2 consecutive casual leave days are permitted at one time."),
+            ("Leave Policy",     "Maternity Leave: Female employees are entitled to 26 weeks of paid maternity leave. Paternity leave of 5 working days is available for fathers within 3 months of childbirth."),
+            ("Code of Conduct",  "Professional Behavior: All employees must maintain respectful, professional conduct in the workplace. Harassment, discrimination, or bullying of any kind will result in disciplinary action up to and including termination."),
+            ("Code of Conduct",  "Confidentiality: Employees must not disclose company trade secrets, client data, or internal financial information to external parties. This obligation continues for 2 years after employment ends."),
+            ("Benefits Policy",  "Health Insurance: The company provides comprehensive health insurance for all full-time employees and their immediate dependents. Coverage includes hospitalization, outpatient consultations, dental, and vision care."),
+            ("Benefits Policy",  "Provident Fund: The company contributes 12% of basic salary to the employee provident fund. Employees also contribute 12%. Full vesting occurs after 5 years of service."),
+            ("Remote Work Policy","Work From Home: Employees may work remotely up to 2 days per week with prior manager approval. Core hours of 10:00 AM to 4:00 PM must be maintained. Remote work privileges may be revoked for performance issues."),
+            ("Remote Work Policy","Equipment: The company provides a laptop for remote work. Employees are responsible for a stable internet connection. IT support is available during standard business hours only."),
+        ]
+
+        for title, chunk_text in policy_data:
+            emb = await asyncio.to_thread(_encode, chunk_text)
+            emb_str = ",".join(f"{v:.6f}" for v in emb)
+            db.add(PolicyDocument(
+                title=title,
+                file_url="",
+                chunk_index=0,
+                chunk_text=chunk_text,
+                embedding_str=emb_str,
+            ))
+
+        await db.commit()
+        print("Policy documents seeded.")
 
 
 if __name__ == "__main__":

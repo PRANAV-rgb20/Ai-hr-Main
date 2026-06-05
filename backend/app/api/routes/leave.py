@@ -1,9 +1,9 @@
 """Leave management routes."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,6 +13,7 @@ from app.models.leave import Leave, LeaveBalance, LeaveStatus, LeaveType
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas import LeaveApply, LeaveBalanceOut, LeaveOut
+from app.core.audit import log_action
 
 router = APIRouter(prefix="/leave", tags=["leave"])
 
@@ -52,6 +53,26 @@ async def apply_leave(
         raise HTTPException(status_code=400, detail="End date must be after start date")
     emp = await _get_my_employee(db, user)
     days = (payload.end_date - payload.start_date).days + 1
+
+    # Check leave balance (skip for unpaid leave)
+    if payload.leave_type != "unpaid":
+        bal_res = await db.execute(
+            select(LeaveBalance).where(
+                and_(
+                    LeaveBalance.employee_id == emp.id,
+                    LeaveBalance.leave_type == payload.leave_type,
+                )
+            )
+        )
+        bal = bal_res.scalar_one_or_none()
+        if bal:
+            remaining = max(0, (bal.total_days or 0) - (bal.used_days or 0))
+            if days > remaining:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient leave balance. You have {remaining} {payload.leave_type} days remaining.",
+                )
+
     leave = Leave(
         employee_id=emp.id,
         leave_type=payload.leave_type,
@@ -96,6 +117,79 @@ async def pending_leaves(
     return items
 
 
+@router.get("/{leave_id}/conflict")
+async def leave_conflict(
+    leave_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(require_roles("management_admin", "senior_manager"))],
+):
+    leave = (await db.execute(select(Leave).where(Leave.id == leave_id))).scalar_one_or_none()
+    if not leave:
+        raise HTTPException(status_code=404, detail="Leave not found")
+    emp = (await db.execute(select(Employee).where(Employee.id == leave.employee_id))).scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee profile not found")
+
+    if user.role == "senior_manager":
+        mgr = (await db.execute(select(Employee).where(Employee.user_id == user.id))).scalar_one_or_none()
+        if not mgr or emp.manager_id != mgr.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        team_filter = Employee.manager_id == mgr.id
+    else:
+        team_filter = Employee.department_id == emp.department_id
+
+    team = (
+        await db.execute(select(Employee).where(team_filter, Employee.is_active.is_(True)))
+    ).scalars().unique().all()
+    team_ids = [member.id for member in team]
+    team_size = len(team_ids) or 1
+
+    approved_overlap = 0
+    if team_ids:
+        approved_overlap = (
+            await db.execute(
+                select(func.count(func.distinct(Leave.employee_id))).where(
+                    Leave.employee_id.in_(team_ids),
+                    Leave.status == LeaveStatus.approved,
+                    Leave.start_date <= leave.end_date,
+                    Leave.end_date >= leave.start_date,
+                )
+            )
+        ).scalar() or 0
+    absent_if_approved = approved_overlap + (0 if leave.status == LeaveStatus.approved else 1)
+    absent_ratio = absent_if_approved / team_size
+    threshold_exceeded = absent_ratio > 0.40
+
+    project_deadline = None
+    if leave.start_date.month == 12 or leave.end_date.month == 12:
+        project_deadline = {"name": "Q4 Review", "date": f"{leave.start_date.year}-12-16"}
+    elif leave.start_date.month in (3, 6, 9):
+        project_deadline = {
+            "name": "Quarterly Business Review",
+            "date": (leave.end_date + timedelta(days=1)).isoformat(),
+        }
+
+    return {
+        "leave_id": leave_id,
+        "employee_id": str(emp.id),
+        "team_size": team_size,
+        "already_absent": approved_overlap,
+        "absent_if_approved": absent_if_approved,
+        "absent_ratio": round(absent_ratio, 2),
+        "threshold_exceeded": threshold_exceeded,
+        "project_deadline": project_deadline,
+        "message": (
+            f"Approving this leave means {absent_if_approved} of {team_size} team members "
+            f"will be absent between {leave.start_date} and {leave.end_date}."
+        ),
+        "suggestion": (
+            "Discuss alternate dates with the employee before approving."
+            if threshold_exceeded
+            else "Coverage looks manageable for this leave window."
+        ),
+    }
+
+
 async def _decide(db: AsyncSession, user: User, leave_id: str, new_status: LeaveStatus, title: str):
     res = await db.execute(select(Leave).where(Leave.id == leave_id))
     leave = res.scalar_one_or_none()
@@ -132,7 +226,9 @@ async def approve_leave(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(require_roles("management_admin", "senior_manager"))],
 ):
-    return await _decide(db, user, leave_id, LeaveStatus.approved, "Leave Approved")
+    result = await _decide(db, user, leave_id, LeaveStatus.approved, "Leave Approved")
+    await log_action(db, user, "leave_approved", "leave", leave_id)
+    return result
 
 
 @router.put("/{leave_id}/reject", response_model=LeaveOut)
@@ -141,7 +237,9 @@ async def reject_leave(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(require_roles("management_admin", "senior_manager"))],
 ):
-    return await _decide(db, user, leave_id, LeaveStatus.rejected, "Leave Rejected")
+    result = await _decide(db, user, leave_id, LeaveStatus.rejected, "Leave Rejected")
+    await log_action(db, user, "leave_rejected", "leave", leave_id)
+    return result
 
 
 @router.get("/balance/{employee_id}", response_model=list[LeaveBalanceOut])

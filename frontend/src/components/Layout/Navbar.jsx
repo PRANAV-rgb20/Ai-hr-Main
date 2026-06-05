@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, LogOut, Menu, User, Check } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -12,16 +12,41 @@ const ROLE_LABEL = {
   employee: { text: 'Employee', cls: 'bg-slate-100 text-slate-700 border-slate-200' },
 };
 
+/* ── Isolated LiveClock — only this tiny component re-renders every second ── */
+function LiveClock() {
+  const [liveTime, setLiveTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setLiveTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <p className="text-xs uppercase tracking-[0.08em] text-slate-500 font-semibold">
+      {liveTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+      {' · '}
+      <span className="tabular-nums font-mono">{liveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+    </p>
+  );
+}
+
 export default function Navbar({ onMenu }) {
   const { user, role, logout } = useAuthStore();
   const navigate = useNavigate();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifs, setNotifs] = useState([]);
-  const unread = notifs.filter((n) => !n.is_read).length;
+  const [notifs, setNotifs]       = useState([]);
+
+  const unread = useMemo(() => notifs.filter((n) => !n.is_read).length, [notifs]);
   const badge = ROLE_LABEL[role] || ROLE_LABEL.employee;
 
   useEffect(() => {
+    // Initial fetch
     api.get('/notifications/my').then((r) => setNotifs(r.data || [])).catch(() => {});
+
+    // Poll every 60 seconds for new notifications
+    const interval = setInterval(() => {
+      api.get('/notifications/my').then((r) => setNotifs(r.data || [])).catch(() => {});
+    }, 60_000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -52,12 +77,11 @@ export default function Navbar({ onMenu }) {
           <Menu size={20} />
         </button>
         <div>
-          <p className="text-xs uppercase tracking-[0.08em] text-slate-500 font-semibold">Welcome back</p>
+          <LiveClock />
+
           <h2 className="text-base font-semibold text-slate-900" style={{fontFamily:'Outfit'}}>{user?.full_name || 'User'}</h2>
         </div>
-      </div>
-
-      <div className="flex items-center gap-3">
+      </div>      <div className="flex items-center gap-3">
         <span
           className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium border ${badge.cls}`}
           data-testid="navbar-role-badge"

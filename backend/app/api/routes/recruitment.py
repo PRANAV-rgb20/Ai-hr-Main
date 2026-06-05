@@ -183,7 +183,12 @@ async def apply_job(
         api_error(409, "Job is closed for applications", "job_closed")
 
     if resume_file:
-        resume_url = await upload_resume_pdf(resume_file, job_id, email)
+        try:
+            resume_url = await upload_resume_pdf(resume_file, job_id, email)
+        except Exception as upload_err:
+            import logging
+            logging.getLogger("hrms").warning(f"Resume upload to Cloudinary failed: {upload_err}. Saving candidate without resume.")
+            resume_url = ""  # Accept application even if upload fails
 
     c = Candidate(
         job_id=j.id,

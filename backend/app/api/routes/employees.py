@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.exceptions import api_error
 from app.core.deps import get_current_user, require_roles
 from app.core.security import hash_password
+from app.core.audit import log_action
 from app.models.employee import Department, Employee
 from app.models.user import RoleEnum, User
 from app.schemas import (
@@ -121,7 +122,7 @@ async def get_employee(
 async def create_employee(
     payload: EmployeeCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_roles("management_admin"))],
+    current_user: Annotated[User, Depends(require_roles("management_admin"))],
 ):
     if payload.role not in [r.value for r in RoleEnum]:
         raise HTTPException(status_code=400, detail="Invalid role")
@@ -148,6 +149,7 @@ async def create_employee(
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+    await log_action(db, current_user, "employee_created", "employee", str(emp.id), {"name": payload.full_name})
     return _employee_to_out(emp)
 
 
@@ -156,7 +158,7 @@ async def update_employee(
     employee_id: str,
     payload: EmployeeUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_roles("management_admin"))],
+    current_user: Annotated[User, Depends(require_roles("management_admin"))],
 ):
     res = await db.execute(select(Employee).where(Employee.id == employee_id))
     emp = res.scalar_one_or_none()
@@ -166,6 +168,7 @@ async def update_employee(
         setattr(emp, k, v)
     await db.commit()
     await db.refresh(emp)
+    await log_action(db, current_user, "employee_updated", "employee", employee_id)
     return _employee_to_out(emp)
 
 

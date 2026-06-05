@@ -9,6 +9,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 class Settings:
     DATABASE_URL: str = os.environ["DATABASE_URL"]
     DATABASE_URL_SYNC: str = os.environ.get("DATABASE_URL_SYNC", "")
+    DB_POOL_PRE_PING: bool = os.environ.get("DB_POOL_PRE_PING", "false").lower() in ("1", "true", "yes")
 
     SECRET_KEY: str = os.environ["SECRET_KEY"]
     ALGORITHM: str = os.environ.get("ALGORITHM", "HS256")
@@ -22,6 +23,12 @@ class Settings:
     CLOUDINARY_API_SECRET: str = os.environ.get("CLOUDINARY_API_SECRET", "")
 
     CORS_ORIGINS: str = os.environ.get("CORS_ORIGINS", "*")
+
+    # AI — OpenRouter (replaces Gemini + Groq)
+    OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
+    # Legacy keys kept for backward compatibility (not used)
+    GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
+    GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "")
 
 
 settings = Settings()
