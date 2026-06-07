@@ -91,7 +91,7 @@ async def admin_dashboard(
         select(
             func.extract("month", Attendance.date).label("m"),
             func.extract("year", Attendance.date).label("y"),
-            func.count(func.distinct(Attendance.date)).label("days"),
+            func.count(Attendance.id).label("total"),
             func.count(case((Attendance.status.in_(["present", "late"]), Attendance.id))).label("present"),
         )
         .where(Attendance.date >= six_months_ago)
@@ -101,8 +101,8 @@ async def admin_dashboard(
     months = []
     for row in trend_res.all():
         m_val, y_val = int(row.m), int(row.y)
-        expected = total_employees * row.days
-        rate = round((row.present / expected * 100) if expected else 0, 1)
+        total_records = row.total
+        rate = round((row.present / total_records * 100) if total_records else 0, 1)
         months.append({"label": date(y_val, m_val, 1).strftime("%b %y"), "rate": min(rate, 100.0)})
 
     result = {
